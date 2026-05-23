@@ -26,27 +26,39 @@ export default function CanvasBoard({
 
     let loopId: number | undefined;
     let isDrawing = false;
+    let prevX: number;
+    let prevY: number;
+    const alpha = 0.4;
 
-    function tick() {
+    function draw() {
       const ctx = canvasRef.current?.getContext("2d");
       if (ctx) {
         if (coordinates.current) {
           if (!isDrawing) {
             ctx.beginPath();
             ctx.moveTo(coordinates.current.x, coordinates.current.y);
+            prevX = coordinates.current.x;
+            prevY = coordinates.current.y;
             isDrawing = true;
+          } else {
+            const smoothedX = prevX + alpha * (coordinates.current.x - prevX);
+            const smoothedY = prevY + alpha * (coordinates.current.y - prevY);
+            const midPointX = (prevX + smoothedX) / 2;
+            const midPointY = (prevY + smoothedY) / 2;
+            ctx.quadraticCurveTo(prevX, prevY, midPointX, midPointY);
+            ctx.stroke();
+            prevX = smoothedX;
+            prevY = smoothedY;
           }
-          ctx.lineTo(coordinates.current.x, coordinates.current.y);
-          ctx.stroke();
         } else {
           if (isDrawing) {
             isDrawing = false;
           }
         }
       }
-      loopId = requestAnimationFrame(tick);
+      loopId = requestAnimationFrame(draw);
     }
-    tick();
+    draw();
 
     return () => {
       if (loopId) cancelAnimationFrame(loopId);
