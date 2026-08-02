@@ -1,1 +1,5 @@
-export type Coords = { x: number; y: number };
+export type HandState = {
+  indexTipCoords: { x: number; y: number };
+  isPinching: boolean;
+  gesture: "none" | "menu";
+};

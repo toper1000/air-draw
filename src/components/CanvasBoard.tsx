@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Coords } from "@/types";
+import type { HandState } from "@/types";
 
 export default function CanvasBoard({
-  coordinates,
+  handState,
 }: {
-  coordinates: React.RefObject<Coords | null>;
+  handState: React.RefObject<HandState | null>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -33,16 +33,21 @@ export default function CanvasBoard({
     function draw() {
       const ctx = canvasRef.current?.getContext("2d");
       if (ctx) {
-        if (coordinates.current) {
+        if (handState.current && handState.current.isPinching) {
           if (!isDrawing) {
             ctx.beginPath();
-            ctx.moveTo(coordinates.current.x, coordinates.current.y);
-            prevX = coordinates.current.x;
-            prevY = coordinates.current.y;
+            ctx.moveTo(
+              handState.current.indexTipCoords.x,
+              handState.current.indexTipCoords.y,
+            );
+            prevX = handState.current.indexTipCoords.x;
+            prevY = handState.current.indexTipCoords.y;
             isDrawing = true;
           } else {
-            const smoothedX = prevX + alpha * (coordinates.current.x - prevX);
-            const smoothedY = prevY + alpha * (coordinates.current.y - prevY);
+            const smoothedX =
+              prevX + alpha * (handState.current.indexTipCoords.x - prevX);
+            const smoothedY =
+              prevY + alpha * (handState.current.indexTipCoords.y - prevY);
             const midPointX = (prevX + smoothedX) / 2;
             const midPointY = (prevY + smoothedY) / 2;
             ctx.quadraticCurveTo(prevX, prevY, midPointX, midPointY);

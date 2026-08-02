@@ -6,12 +6,12 @@ import {
   FilesetResolver,
   type HandLandmarkerResult,
 } from "@mediapipe/tasks-vision";
-import type { Coords } from "@/types";
+import type { HandState } from "@/types";
 
 export default function Webcam({
-  coordinates,
+  handState,
 }: {
-  coordinates: React.RefObject<Coords | null>;
+  handState: React.RefObject<HandState | null>;
 }) {
   const cameraRef = useRef<HTMLVideoElement>(null);
 
@@ -68,17 +68,74 @@ export default function Webcam({
 
     let loopId: number | undefined;
     let result: HandLandmarkerResult | undefined;
+    let isPinching = false;
+    let smoothedRatio: number | null = null;
+    const alpha = 0.05;
+
+    //let counter = 0;
+    //let avaragePinched = 0;
     function tick() {
       if (cameraRef.current && cameraRef.current.readyState >= 2 && model) {
         result = model.detectForVideo(cameraRef.current, performance.now());
 
         if (result.landmarks.length > 0) {
-          coordinates.current = {
-            x: (1 - result.landmarks[0][8].x) * window.innerWidth,
-            y: result.landmarks[0][8].y * window.innerHeight,
+          const PINCH_ON = 0.6;
+          const PINCH_OFF = 0.75;
+
+          const indexFingerMcpX = result.landmarks[0][5].x;
+          const indexFingerMcpY = result.landmarks[0][5].y;
+
+          const pinkyMcpX = result.landmarks[0][17].x;
+          const pinkyMcpY = result.landmarks[0][17].y;
+
+          const indexTipX = result.landmarks[0][8].x;
+          const indexTipY = result.landmarks[0][8].y;
+
+          const thumbTipX = result.landmarks[0][4].x;
+          const thumbTipY = result.landmarks[0][4].y;
+
+          const distMcps = Math.sqrt(
+            (indexFingerMcpX - pinkyMcpX) ** 2 +
+              (indexFingerMcpY - pinkyMcpY) ** 2,
+          );
+
+          const distTips = Math.sqrt(
+            (indexTipX - thumbTipX) ** 2 + (indexTipY - thumbTipY) ** 2,
+          );
+
+          const ratio = distTips / distMcps;
+          if (smoothedRatio !== null)
+            smoothedRatio = smoothedRatio + alpha * (ratio - smoothedRatio);
+          else smoothedRatio = ratio;
+
+          if (smoothedRatio < PINCH_ON) {
+            isPinching = true;
+          } else if (smoothedRatio > PINCH_OFF) {
+            isPinching = false;
+          }
+          //console.log(ratio);
+          if (smoothedRatio > 0.75) {
+            console.log(smoothedRatio);
+          } /*
+          avaragePinched += ratio;
+          if (counter >= 20) {
+            //console.log(ratio);
+            //console.log(avaragePinched / 501);
+            avaragePinched = 0;
+            counter = -1;
+          }
+          counter++;*/
+
+          handState.current = {
+            indexTipCoords: {
+              x: (1 - indexTipX) * window.innerWidth,
+              y: indexTipY * window.innerHeight,
+            },
+            isPinching: isPinching,
+            gesture: "none",
           };
         } else {
-          coordinates.current = null;
+          handState.current = null;
         }
       }
       loopId = requestAnimationFrame(tick);
