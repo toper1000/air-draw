@@ -22,13 +22,13 @@ Hand tracking runs entirely in your browser with [MediaPipe](https://ai.google.d
 
 ## Gestures
 
-| Gesture | Action |
-| --- | --- |
-| 🤏 Pinch (thumb + index finger) | Draw while pinched |
-| ✌️ Hold for half a second | Open the color and line width panel |
-| Move your hand a little, then 🤏 | Pick a color (inner ring) |
-| Move your hand further up, then 🤏 | Pick a line width (outer arc) |
-| 🤏 In the middle of the panel | Close the panel without changes |
+| Gesture                            | Action                              |
+| ---------------------------------- | ----------------------------------- |
+| 🤏 Pinch (thumb + index finger)    | Draw while pinched                  |
+| ✌️ Hold for half a second          | Open the color and line width panel |
+| Move your hand a little, then 🤏   | Pick a color (inner ring)           |
+| Move your hand further up, then 🤏 | Pick a line width (outer arc)       |
+| 🤏 In the middle of the panel      | Close the panel without changes     |
 
 > **Tip:** Once the panel is open, the pointer follows your **palm**, not your fingertips. A pinch moves your fingertips but barely moves your palm, so the pinch never knocks the pointer off the option you're picking.
 
@@ -61,12 +61,12 @@ For the best tracking:
 
 ### Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start the development server |
-| `npm run build` | Create a production build |
-| `npm run start` | Serve the production build |
-| `npm run lint` | Run ESLint |
+| Command         | Description                  |
+| --------------- | ---------------------------- |
+| `npm run dev`   | Start the development server |
+| `npm run build` | Create a production build    |
+| `npm run start` | Serve the production build   |
+| `npm run lint`  | Run ESLint                   |
 
 ## How it works
 
@@ -131,14 +131,14 @@ src/
 
 Most of the behavior can be adjusted with constants at the top of each file:
 
-| What | Constants | File |
-| --- | --- | --- |
-| Pinch sensitivity | `PINCH_ON`, `PINCH_OFF` | `src/lib/pinchDetector.ts` |
-| Cursor smoothing | `minCutoff`, `beta`, leash length | `src/lib/cursorSmoother.ts` |
-| Dropout grace time, glitch filter | `HAND_LOST_MS`, `MAX_SPEED`, `NEW_TRACK_SPEED` | `src/lib/handTracker.ts` |
-| ✌️ hold time | `MENU_HOLD_MS` | `src/lib/menuGesture.ts` |
-| Colors, line widths, panel size | `MENU_COLORS`, `LINE_WIDTHS`, `MENU_RADIUS` | `src/lib/wheelMenu.ts` |
-| Stroke continuation after a lost pinch | `RESUME_MS`, `RESUME_PX` | `src/components/CanvasBoard.tsx` |
+| What                                   | Constants                                      | File                             |
+| -------------------------------------- | ---------------------------------------------- | -------------------------------- |
+| Pinch sensitivity                      | `PINCH_ON`, `PINCH_OFF`                        | `src/lib/pinchDetector.ts`       |
+| Cursor smoothing                       | `minCutoff`, `beta`, leash length              | `src/lib/cursorSmoother.ts`      |
+| Dropout grace time, glitch filter      | `HAND_LOST_MS`, `MAX_SPEED`, `NEW_TRACK_SPEED` | `src/lib/handTracker.ts`         |
+| ✌️ hold time                           | `MENU_HOLD_MS`                                 | `src/lib/menuGesture.ts`         |
+| Colors, line widths, panel size        | `MENU_COLORS`, `LINE_WIDTHS`, `MENU_RADIUS`    | `src/lib/wheelMenu.ts`           |
+| Stroke continuation after a lost pinch | `RESUME_MS`, `RESUME_PX`                       | `src/components/CanvasBoard.tsx` |
 
 ## Privacy
 
