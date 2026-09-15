@@ -4,9 +4,13 @@ import { useRef, useEffect } from "react";
 import {
   HandLandmarker,
   FilesetResolver,
-  type HandLandmarkerResult,
+  type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
 import type { HandState } from "@/types";
+import { createHandTracker } from "@/lib/handTracker";
+import { drawHandSkeleton } from "@/lib/drawHandSkeleton";
+
+const SKELETON_HOLD_MS = 100;
 
 export default function Webcam({
   handState,
@@ -14,10 +18,13 @@ export default function Webcam({
   handState: React.RefObject<HandState | null>;
 }) {
   const cameraRef = useRef<HTMLVideoElement>(null);
+  const skeletonRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     let model: HandLandmarker | undefined;
+    const video = cameraRef.current;
+    const skeletonCanvas = skeletonRef.current;
 
     async function createModel() {
       try {
@@ -32,6 +39,7 @@ export default function Webcam({
           },
           runningMode: "VIDEO",
           numHands: 1,
+          minHandPresenceConfidence: 0.4,
         });
         if (cancelled) {
           model?.close();
@@ -48,7 +56,11 @@ export default function Webcam({
     async function getStream() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 60 },
+          },
           audio: false,
         });
 
@@ -57,8 +69,8 @@ export default function Webcam({
           return;
         }
 
-        if (cameraRef.current) {
-          cameraRef.current.srcObject = stream;
+        if (video) {
+          video.srcObject = stream;
         }
       } catch (e) {
         console.error(e);
@@ -66,96 +78,62 @@ export default function Webcam({
     }
     getStream();
 
-    let loopId: number | undefined;
-    let result: HandLandmarkerResult | undefined;
-    let isPinching = false;
-    let smoothedRatio: number | null = null;
-    const alpha = 0.05;
+    const tracker = createHandTracker();
 
-    //let counter = 0;
-    //let avaragePinched = 0;
-    function tick() {
-      if (cameraRef.current && cameraRef.current.readyState >= 2 && model) {
-        result = model.detectForVideo(cameraRef.current, performance.now());
+    let frameCallbackId: number | undefined;
+    let lastHand: NormalizedLandmark[] | undefined;
+    let lastHandTime = -Infinity;
+    function onCameraFrame(now: number) {
+      if (cancelled || !video) return;
+      if (model) {
+        const result = model.detectForVideo(video, now);
+        const hand = result.landmarks[0];
+        tracker.addCameraFrame(hand, video.videoWidth, video.videoHeight, now);
 
-        if (result.landmarks.length > 0) {
-          const PINCH_ON = 0.6;
-          const PINCH_OFF = 0.75;
-
-          const indexFingerMcpX = result.landmarks[0][5].x;
-          const indexFingerMcpY = result.landmarks[0][5].y;
-
-          const pinkyMcpX = result.landmarks[0][17].x;
-          const pinkyMcpY = result.landmarks[0][17].y;
-
-          const indexTipX = result.landmarks[0][8].x;
-          const indexTipY = result.landmarks[0][8].y;
-
-          const thumbTipX = result.landmarks[0][4].x;
-          const thumbTipY = result.landmarks[0][4].y;
-
-          const distMcps = Math.sqrt(
-            (indexFingerMcpX - pinkyMcpX) ** 2 +
-              (indexFingerMcpY - pinkyMcpY) ** 2,
+        if (hand) {
+          lastHand = hand;
+          lastHandTime = now;
+        }
+        if (skeletonCanvas) {
+          drawHandSkeleton(
+            skeletonCanvas,
+            now - lastHandTime <= SKELETON_HOLD_MS ? lastHand : undefined,
+            tracker.getIsPinching(),
+            tracker.getGestureProgress(now) > 0,
           );
-
-          const distTips = Math.sqrt(
-            (indexTipX - thumbTipX) ** 2 + (indexTipY - thumbTipY) ** 2,
-          );
-
-          const ratio = distTips / distMcps;
-          if (smoothedRatio !== null)
-            smoothedRatio = smoothedRatio + alpha * (ratio - smoothedRatio);
-          else smoothedRatio = ratio;
-
-          if (smoothedRatio < PINCH_ON) {
-            isPinching = true;
-          } else if (smoothedRatio > PINCH_OFF) {
-            isPinching = false;
-          }
-          //console.log(ratio);
-          if (smoothedRatio > 0.75) {
-            console.log(smoothedRatio);
-          } /*
-          avaragePinched += ratio;
-          if (counter >= 20) {
-            //console.log(ratio);
-            //console.log(avaragePinched / 501);
-            avaragePinched = 0;
-            counter = -1;
-          }
-          counter++;*/
-
-          handState.current = {
-            indexTipCoords: {
-              x: (1 - indexTipX) * window.innerWidth,
-              y: indexTipY * window.innerHeight,
-            },
-            isPinching: isPinching,
-            gesture: "none",
-          };
-        } else {
-          handState.current = null;
         }
       }
+      frameCallbackId = video.requestVideoFrameCallback(onCameraFrame);
+    }
+    if (video) {
+      frameCallbackId = video.requestVideoFrameCallback(onCameraFrame);
+    }
+
+    let loopId: number | undefined;
+    function tick(now: number) {
+      handState.current = tracker.getHandState(now);
       loopId = requestAnimationFrame(tick);
     }
-    tick();
+    loopId = requestAnimationFrame(tick);
 
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((track) => track.stop());
       if (loopId) cancelAnimationFrame(loopId);
+      if (video && frameCallbackId !== undefined) {
+        video.cancelVideoFrameCallback(frameCallbackId);
+      }
       model?.close();
     };
-  }, []);
+  }, [handState]);
 
   return (
-    <video
-      autoPlay
-      playsInline
-      ref={cameraRef}
-      className="w-[300px] fixed top-0 right-0 z-50 scale-x-[-1]"
-    ></video>
+    <div className="w-[300px] fixed top-0 right-0 z-50 scale-x-[-1]">
+      <video autoPlay playsInline ref={cameraRef} className="w-full"></video>
+      <canvas
+        ref={skeletonRef}
+        className="absolute inset-0 w-full h-full"
+      ></canvas>
+    </div>
   );
 }
