@@ -9,6 +9,10 @@ export type HandState = {
   gesture: "none" | "menu";
 };
 
+export type TrackingStatus = "loading" | "ready" | "failed";
+
+export type CameraStatus = "starting" | "ready" | "blocked" | "failed";
+
 export type MenuOption = { kind: "color" | "width"; index: number };
 
 export type MenuState = {

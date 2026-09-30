@@ -1,14 +1,16 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import {
   HandLandmarker,
   FilesetResolver,
+  type HandLandmarkerResult,
   type NormalizedLandmark,
 } from "@mediapipe/tasks-vision";
-import type { HandState } from "@/types";
+import type { CameraStatus, HandState, TrackingStatus } from "@/types";
 import { createHandTracker } from "@/lib/handTracker";
 import { drawHandSkeleton } from "@/lib/drawHandSkeleton";
+import LoadingScreen from "./LoadingScreen";
 
 const SKELETON_HOLD_MS = 100;
 
@@ -19,12 +21,30 @@ export default function Webcam({
 }) {
   const cameraRef = useRef<HTMLVideoElement>(null);
   const skeletonRef = useRef<HTMLCanvasElement>(null);
+  const [trackingStatus, setTrackingStatus] =
+    useState<TrackingStatus>("loading");
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("starting");
 
   useEffect(() => {
     let cancelled = false;
+    let isTracking = false;
+    let hasFailed = false;
     let model: HandLandmarker | undefined;
+    let stream: MediaStream | null = null;
     const video = cameraRef.current;
     const skeletonCanvas = skeletonRef.current;
+
+    function stopCamera() {
+      stream?.getTracks().forEach((track) => track.stop());
+    }
+
+    function onTrackingError(error: unknown) {
+      console.error(error);
+      if (cancelled || isTracking) return;
+      hasFailed = true;
+      stopCamera();
+      setTrackingStatus("failed");
+    }
 
     async function createModel() {
       try {
@@ -46,12 +66,10 @@ export default function Webcam({
           return;
         }
       } catch (e) {
-        console.log(e);
+        onTrackingError(e);
       }
     }
     createModel();
-
-    let stream: MediaStream | null = null;
 
     async function getStream() {
       try {
@@ -64,16 +82,21 @@ export default function Webcam({
           audio: false,
         });
 
-        if (cancelled) {
-          stream?.getTracks().forEach((track) => track.stop());
+        if (cancelled || hasFailed) {
+          stopCamera();
           return;
         }
 
         if (video) {
           video.srcObject = stream;
         }
+        setCameraStatus("ready");
       } catch (e) {
         console.error(e);
+        if (cancelled) return;
+        const isBlocked =
+          e instanceof DOMException && e.name === "NotAllowedError";
+        setCameraStatus(isBlocked ? "blocked" : "failed");
       }
     }
     getStream();
@@ -86,7 +109,17 @@ export default function Webcam({
     function onCameraFrame(now: number) {
       if (cancelled || !video) return;
       if (model) {
-        const result = model.detectForVideo(video, now);
+        let result: HandLandmarkerResult;
+        try {
+          result = model.detectForVideo(video, now);
+        } catch (e) {
+          onTrackingError(e);
+          return;
+        }
+        if (!isTracking) {
+          isTracking = true;
+          setTrackingStatus("ready");
+        }
         const hand = result.landmarks[0];
         tracker.addCameraFrame(hand, video.videoWidth, video.videoHeight, now);
 
@@ -118,7 +151,7 @@ export default function Webcam({
 
     return () => {
       cancelled = true;
-      stream?.getTracks().forEach((track) => track.stop());
+      stopCamera();
       if (loopId) cancelAnimationFrame(loopId);
       if (video && frameCallbackId !== undefined) {
         video.cancelVideoFrameCallback(frameCallbackId);
@@ -128,12 +161,15 @@ export default function Webcam({
   }, [handState]);
 
   return (
-    <div className="w-[300px] fixed top-0 right-0 z-50 scale-x-[-1]">
-      <video autoPlay playsInline ref={cameraRef} className="w-full"></video>
-      <canvas
-        ref={skeletonRef}
-        className="absolute inset-0 w-full h-full"
-      ></canvas>
-    </div>
+    <>
+      <div className="w-[300px] fixed top-0 right-0 z-50 scale-x-[-1]">
+        <video autoPlay playsInline ref={cameraRef} className="w-full"></video>
+        <canvas
+          ref={skeletonRef}
+          className="absolute inset-0 w-full h-full"
+        ></canvas>
+      </div>
+      <LoadingScreen tracking={trackingStatus} camera={cameraStatus} />
+    </>
   );
 }
